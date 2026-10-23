@@ -57,6 +57,11 @@ tico shows text as UTF-8. tico16 does no conversion: bytes 128-255 are
 shown with the PC's code page glyphs. Control bytes (0-31 except Tab,
 and 127) are shown in caret notation (`^A`, `^?`), as in tico.
 
+## The title bar says tico16
+
+The upper left of the title bar shows `tico16` and tico16's version,
+where tico shows `tico` and its own version.
+
 ## The screen is restored on exit
 
 Like tico on a terminal with an alternate screen, tico16 puts back the

@@ -47,7 +47,7 @@ Use the existing video mode where possible. No mouse, network access, expanded m
 
 Match the actual tico layout and behavior as closely as possible within an 80×25 display. Consult the tico source (checked out as a sibling, `../tico`) rather than relying on a generic nano approximation.
 
-The screen comprises a title bar, editable viewport, status/message line, and a two-line shortcut bar, as in tico. The title bar shows `tico VERSION`, the filename (or `New Buffer`), and `Modified` when changed. The cursor position is reported on demand with `^C` (Location), in tico's format: `line L/N (P%), col C/W (P%), char X/T (P%)`.
+The screen comprises a title bar, editable viewport, status/message line, and a two-line shortcut bar, as in tico. The title bar shows `tico16 VERSION` (where tico shows `tico VERSION`), the filename (or `New Buffer`), and `Modified` when changed. The cursor position is reported on demand with `^C` (Location), in tico's format: `line L/N (P%), col C/W (P%), char X/T (P%)`.
 
 The shortcut bar uses tico's main-menu priority order (`SHORTCUT_PRIORITY` in tico's `src/ui.rs`) with unimplemented entries dropped, laid out in tico's column sizing. For v0.01 that is: Exit, Write Out, Cut, Paste, Location, Copy. Only implemented commands are shown.
 

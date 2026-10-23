@@ -273,6 +273,9 @@ row() {
     fi
 }
 
+# the version, as the title bar shows it
+ver=$(cat "$top/VERSION")
+
 # command line
 rc 1 0
 check "step 1: help" grep -q '^Usage: tico' O1.TXT
@@ -315,16 +318,16 @@ check "no temporary files left" test -z "$(ls | grep -F '$$$')"
 
 # opening
 rc 20 0
-row 20 1 0 '  tico 0.01                          dos.txt'
+row 20 1 0 "  tico16 $ver                         dos.txt"
 shows 20 1 '\[ Read 2 lines (converted from DOS format) \]'
 row 20 1 23 '^X Exit        ^K Cut         ^C Location'
 row 20 1 24 '^O Write Out   ^U Paste       M-6 Copy'
 rc 21 0
-row 21 1 0 '  tico 0.01                          new.txt'
+row 21 1 0 "  tico16 $ver                         new.txt"
 shows 21 1 '\[ New File \]'
 check "step 21: no file made" test ! -e NEW.TXT
 rc 22 0
-row 22 1 0 '  tico 0.01                        New Buffer'
+row 22 1 0 "  tico16 $ver                       New Buffer"
 row 22 1 22 ''
 
 # typing
@@ -336,7 +339,7 @@ rc 24 0
 bytes 24 KEEP.TXT 'keep\r\n'
 rc 25 3
 bytes 25 KEEP.TXT 'keep\r\n'
-row 25 1 0 '  tico 0.01                         keep.txt                          Modified'
+row 25 1 0 "  tico16 $ver                        keep.txt                         Modified"
 shows 25 1 '\[ Cancelled \]'
 
 # cut, copy, paste
@@ -362,7 +365,7 @@ bytes 32 ZEDIT.TXT 'a\r\nx\r\n\032'
 # another name
 rc 33 0
 row 33 1 22 'Save file under DIFFERENT NAME?'
-row 33 2 0 '  tico 0.01                         other.txt'
+row 33 2 0 "  tico16 $ver                        other.txt"
 bytes 33 ORIG.TXT 'orig\r\n'
 bytes 33 OTHER.TXT 'orig\r\n'
 rc 34 0
