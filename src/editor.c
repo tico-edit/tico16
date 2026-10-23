@@ -872,7 +872,8 @@ static void draw_line(int row, const line *l, long left)
     put_row(row, n);
 }
 
-/* tico's title_bar_text, for one buffer and no state flags. */
+/* tico's title_bar_text, for one buffer and no state flags; the version
+ * on the left is tico16's own. */
 static void draw_title(void)
 {
     char upperleft[24];
@@ -881,7 +882,7 @@ static void draw_title(void)
     int cols = scr_cols, pluglen = modified ? 0 : 9;
     int verlen, pathlen, pathwidth, statelen, offset, keep, n;
 
-    sprintf(upperleft, "tico %s", VERSION);
+    sprintf(upperleft, "tico16 %s", VERSION);
     memset(row_text, ' ', cols);
     memset(row_attr, ATTR_REVERSE, cols);
     verlen = strlen(upperleft) + 3;
