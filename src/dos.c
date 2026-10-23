@@ -7,7 +7,9 @@
  *
  * The test build (-DTICO_TEST) reads keys from the file named by
  * %TICOKEYS% instead of the keyboard, and appends screen dumps to the
- * file named by %TICOSCR%; see tests/run.sh.
+ * file named by %TICOSCR%; see tests/run.sh.  With %TICOVRAM% set, each
+ * dump also appends the raw text video memory (characters and
+ * attributes) to that file, for making screenshots.
  */
 
 #include <dos.h>
@@ -235,26 +237,37 @@ static const struct {
 static void dump_screen(const char *why)
 {
     const char *path = getenv("TICOSCR");
+    const char *raw = getenv("TICOVRAM");
     union REGS r;
     FILE *fp;
     int row, col, end;
     unsigned short __far *p;
 
-    if (path == NULL || (fp = fopen(path, "ab")) == NULL)
-        return;
     r.h.ah = 0x03;
     r.h.bh = page;
     int86(0x10, &r, &r);
-    fprintf(fp, "=== %s cursor %d %d\r\n", why, r.h.dh, r.h.dl);
-    for (row = 0; row < scr_rows; row++) {
-        p = vram + row * scr_cols;
-        for (end = scr_cols; end > 0 && (p[end - 1] & 0xFF) == ' '; end--)
-            ;
-        for (col = 0; col < end; col++)
-            fputc(p[col] & 0xFF, fp);
-        fputs("\r\n", fp);
+    if (path != NULL && (fp = fopen(path, "ab")) != NULL) {
+        fprintf(fp, "=== %s cursor %d %d\r\n", why, r.h.dh, r.h.dl);
+        for (row = 0; row < scr_rows; row++) {
+            p = vram + row * scr_cols;
+            for (end = scr_cols; end > 0 && (p[end - 1] & 0xFF) == ' ';
+                 end--)
+                ;
+            for (col = 0; col < end; col++)
+                fputc(p[col] & 0xFF, fp);
+            fputs("\r\n", fp);
+        }
+        fclose(fp);
     }
-    fclose(fp);
+    /* raw: rows, columns, cursor row and column, then the cells */
+    if (raw != NULL && (fp = fopen(raw, "ab")) != NULL) {
+        fputc(scr_rows, fp);
+        fputc(scr_cols, fp);
+        fputc(r.h.dh, fp);
+        fputc(r.h.dl, fp);
+        fwrite(vram, sizeof *vram, scr_rows * scr_cols, fp);
+        fclose(fp);
+    }
 }
 
 static void load_script(void)
