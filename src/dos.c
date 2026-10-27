@@ -13,7 +13,6 @@
  */
 
 #include <dos.h>
-#include <i86.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -203,6 +202,7 @@ int key_get(void)
 
 #else /* TICO_TEST */
 
+#include <libc16.h>
 #include <stdio.h>
 
 /*
@@ -211,9 +211,14 @@ int key_get(void)
  * {Down}, {Left}, {Right}, {Home}, {End}, {PgUp}, {PgDn}, {Ins}, {Del},
  * {^Home}, {^End}, {Bsp}, {Tab}, {Enter}, {Esc}, {F1}..{F12}, {Brk},
  * {lb} for a literal '{', {xHH} for a byte, and {Dump} to append the
- * screen to %TICOSCR%.  When the script runs out the editor stops with
- * exit status 3.
+ * screen to %TICOSCR%.  {Crit} raises a critical error as DOS would
+ * (INT 24h, see raise_critical) and appends what the handler did to
+ * %TICOSCR%.  When the script runs out the editor stops with exit status
+ * 3.
  */
+
+/* What fail_critical was called with, for {Crit} */
+static unsigned crit_calls, crit_deverr, crit_errcode;
 
 static char script[8192];
 static unsigned script_len, script_pos;
@@ -247,7 +252,15 @@ static void dump_screen(const char *why)
     r.h.bh = page;
     int86(0x10, &r, &r);
     if (path != NULL && (fp = fopen(path, "ab")) != NULL) {
-        fprintf(fp, "=== %s cursor %d %d\r\n", why, r.h.dh, r.h.dl);
+        char num[12];
+
+        fputs("=== ", fp);
+        fputs(why, fp);
+        fputs(" cursor ", fp);
+        fputs(libc16_ltoa(r.h.dh, num, 10), fp);
+        fputc(' ', fp);
+        fputs(libc16_ltoa(r.h.dl, num, 10), fp);
+        fputs("\r\n", fp);
         for (row = 0; row < scr_rows; row++) {
             p = vram + row * scr_cols;
             for (end = scr_cols; end > 0 && (p[end - 1] & 0xFF) == ' ';
@@ -266,6 +279,39 @@ static void dump_screen(const char *why)
         fputc(r.h.dh, fp);
         fputc(r.h.dl, fp);
         fwrite(vram, sizeof *vram, scr_rows * scr_cols, fp);
+        fclose(fp);
+    }
+}
+
+/*
+ * INT 24h with the registers DOS passes for "drive not ready" while
+ * reading drive A: AH = 38h (a read, from a disk, with fail, retry and
+ * ignore allowed), AL = 0 (drive A:), DI = 2 (drive not ready).  The
+ * handler that sys_init installed with _harderr answers in AL; the
+ * line "=== crit al AL calls N deverr AX errcode DI" goes to %TICOSCR%.
+ */
+static void raise_critical(void)
+{
+    const char *path = getenv("TICOSCR");
+    union REGS r;
+    FILE *fp;
+    char num[12];
+
+    crit_calls = 0;
+    r.x.ax = 0x3800;
+    r.x.di = 0x0002;
+    r.x.bx = r.x.cx = r.x.dx = r.x.si = 0;
+    int86(0x24, &r, &r);
+    if (path != NULL && (fp = fopen(path, "ab")) != NULL) {
+        fputs("=== crit al ", fp);
+        fputs(libc16_ltoa(r.h.al, num, 10), fp);
+        fputs(" calls ", fp);
+        fputs(libc16_ltoa(crit_calls, num, 10), fp);
+        fputs(" deverr ", fp);
+        fputs(libc16_ultoa(crit_deverr, num, 16), fp);
+        fputs(" errcode ", fp);
+        fputs(libc16_ultoa(crit_errcode, num, 16), fp);
+        fputs("\r\n", fp);
         fclose(fp);
     }
 }
@@ -314,6 +360,10 @@ static unsigned script_key(void)
             dump_screen("dump");
             continue;
         }
+        if (strcmp(name, "Crit") == 0) {
+            raise_critical();
+            continue;
+        }
         if (n == 2 && name[0] == '^')
             return CTRL(name[1]);
         if (n == 3 && name[0] == 'x')
@@ -355,11 +405,18 @@ static void __interrupt __far ignore_break(void)
 {
 }
 
-static int __far fail_critical(unsigned deverr, unsigned errcode,
-                               unsigned __far *devhdr)
+/* libc16 calls a _harderr handler __cdecl (its docs/spec/dos.md) */
+static int __cdecl __far fail_critical(unsigned deverr, unsigned errcode,
+                                       unsigned __far *devhdr)
 {
+#ifdef TICO_TEST
+    crit_calls++;
+    crit_deverr = deverr;
+    crit_errcode = errcode;
+#else
     (void)deverr;
     (void)errcode;
+#endif
     (void)devhdr;
     return _HARDERR_FAIL;
 }

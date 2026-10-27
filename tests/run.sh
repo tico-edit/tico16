@@ -187,6 +187,9 @@ edit 41 lines.txt '{End}{Down}{^C}{Dump}{^X}'
 # --- an unbound key; Esc-prefixed Meta keys
 edit 42 '' '{^G}{Dump}x{Dump}{^X}n'
 
+# --- a DOS critical error: the handler fails the call, and editing goes on
+edit 43 '' 'ab{Crit}c{Dump}{^X}n'
+
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 300 \
     "$DOSBOX" -defaultconf -silent -nogui -nomenu \
     -set "cpu cycles=max" -set "cpu cputype=8086" -set "cpu core=normal" \
@@ -411,6 +414,11 @@ shows 41 1 'line   2/101 ( 1%), col  2/ 2 (100%), char   3/292 ( 1%)'
 rc 42 0
 shows 42 1 '\[ Unbound key: \^G \]'
 row 42 2 22 ''
+
+# critical error
+rc 43 0
+check "step 43: handler fails the call" grep -q '^=== crit al 3 calls 1 deverr 3800 errcode 2' S43.TXT
+row 43 2 1 'abc'
 
 # ------------------------------------------------------------------
 

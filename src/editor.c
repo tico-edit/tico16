@@ -9,6 +9,7 @@
  * and the two-line shortcut bar at the bottom.
  */
 
+#include <libc16.h>
 #include <stdio.h>
 #include <string.h>
 #include "tico.h"
@@ -437,6 +438,45 @@ static void do_paste(void)
     set_status("Pasted");
 }
 
+/* ------------------------------------------------------------------ */
+/* messages, built in place of sprintf (libc16 has none): each put_
+ * function appends to d, null-terminates it and returns the end */
+
+static char *put_s(char *d, const char *s)
+{
+    while (*s)
+        *d++ = *s++;
+    *d = 0;
+    return d;
+}
+
+/* At most n bytes of s, as "%.*s" */
+static char *put_sn(char *d, const char *s, int n)
+{
+    while (n-- > 0 && *s)
+        *d++ = *s++;
+    *d = 0;
+    return d;
+}
+
+static char *put_c(char *d, int c)
+{
+    *d++ = (char)c;
+    *d = 0;
+    return d;
+}
+
+/* v in decimal, right-aligned in width columns, as "%*ld" */
+static char *put_l(char *d, long v, int width)
+{
+    char t[12];
+    int n = strlen(libc16_ltoa(v, t, 10));
+
+    while (n < width--)
+        *d++ = ' ';
+    return put_s(d, t);
+}
+
 static int digits(long n)
 {
     int d = 1;
@@ -451,7 +491,7 @@ static int digits(long n)
 /* ^C: nano's report_cursor_position. */
 static void do_location(void)
 {
-    char msg[100];
+    char msg[100], *p;
     const line *l;
     long column = disp_col(cur, cur_x) + 1;
     long fullwidth = disp_col(cur, cur->len) + 1;
@@ -459,13 +499,17 @@ static void do_location(void)
 
     for (l = buf.top; l != cur; l = l->next)
         sum += l->len + 1;
-    sprintf(msg, "line %*ld/%ld (%2d%%), col %2ld/%2ld (%3d%%), "
-            "char %*ld/%ld (%2d%%)",
-            digits(buf.count), cur_no, buf.count,
-            (int)(100 * cur_no / buf.count),
-            column, fullwidth, (int)(100 * column / fullwidth),
-            digits(total), sum, total,
-            total > 0 ? (int)(100 * sum / total) : 0);
+    /* "line %*ld/%ld (%2d%%), col %2ld/%2ld (%3d%%), char %*ld/%ld (%2d%%)" */
+    p = put_l(put_s(msg, "line "), cur_no, digits(buf.count));
+    p = put_l(put_s(p, "/"), buf.count, 0);
+    p = put_l(put_s(p, " ("), 100 * cur_no / buf.count, 2);
+    p = put_l(put_s(p, "%), col "), column, 2);
+    p = put_l(put_s(p, "/"), fullwidth, 2);
+    p = put_l(put_s(p, " ("), 100 * column / fullwidth, 3);
+    p = put_l(put_s(p, "%), char "), sum, digits(total));
+    p = put_l(put_s(p, "/"), total, 0);
+    p = put_l(put_s(p, " ("), total > 0 ? 100 * sum / total : 0, 2);
+    put_s(p, "%)");
     set_status(msg);
 }
 
@@ -493,7 +537,7 @@ static void ask_filename(void)
     const char *tag = format == FMT_UNIX ? ""
                     : format == FMT_MAC ? " [Mac Format]" : " [DOS Format]";
 
-    sprintf(prompt_label, "Write to File%s", tag);
+    put_s(put_s(prompt_label, "Write to File"), tag);
     open_prompt(P_WRITE, prompt_label, answer);
 }
 
@@ -505,25 +549,33 @@ static void finish_write(void)
 
     close_prompt();
     if (!file_save(answer, &buf, format, ctrlz, &err, &kept)) {
-        sprintf(msg, "Error writing %s: %s", answer, err);
+        put_s(put_s(put_s(put_s(msg, "Error writing "), answer), ": "), err);
         set_alert(msg);
         return;
     }
     strcpy(filename, answer);
     modified = 0;
     redraw_title = 1;
-    sprintf(msg, buf.count - 1 == 1 ? "Wrote %ld line" : "Wrote %ld lines",
-            buf.count - 1);
+    put_s(put_l(put_s(msg, "Wrote "), buf.count - 1, 0),
+          buf.count - 1 == 1 ? " line" : " lines");
     set_status(msg);
     if (exiting)
         quitting = 1;
+}
+
+static void ask_overwrite(void)
+{
+    char label[NAMEMAX + 40];
+
+    put_s(put_sn(put_s(label, "File \""), answer, scr_cols - 26),
+          "\" exists; OVERWRITE? ");
+    open_prompt(P_OVERWRITE, label, answer);
 }
 
 /* tico's check_write_answer, without the on-disk-change check. */
 static void check_answer(void)
 {
     int exists = file_exists(answer);
-    char label[NAMEMAX + 40];
 
     if (filename[0] == 0 ? exists : stricmp(answer, filename) != 0) {
         if (filename[0] != 0) {
@@ -532,9 +584,7 @@ static void check_answer(void)
             return;
         }
         if (exists) {
-            sprintf(label, "File \"%.*s\" exists; OVERWRITE? ",
-                    scr_cols - 26 > 0 ? scr_cols - 26 : 0, answer);
-            open_prompt(P_OVERWRITE, label, answer);
+            ask_overwrite();
             return;
         }
     }
@@ -570,8 +620,6 @@ static void cancelled(void)
 
 static void yes_no_key(int k)
 {
-    char label[NAMEMAX + 40];
-
     if (k == 'y' || k == 'Y') {
         switch (prompt) {
         case P_EXIT:
@@ -580,9 +628,7 @@ static void yes_no_key(int k)
             break;
         case P_DIFFNAME:
             if (file_exists(answer)) {
-                sprintf(label, "File \"%.*s\" exists; OVERWRITE? ",
-                        scr_cols - 26 > 0 ? scr_cols - 26 : 0, answer);
-                open_prompt(P_OVERWRITE, label, answer);
+                ask_overwrite();
             } else {
                 finish_write();
             }
@@ -667,17 +713,16 @@ static void text_prompt_key(int k)
 static void unbound(int k)
 {
     char msg[40];
+    char *p = put_s(msg, "Unbound key");
 
     if (k < 0x20)
-        sprintf(msg, "Unbound key: ^%c", k == 0 ? '@' : k + 0x40);
+        put_c(put_s(p, ": ^"), k == 0 ? '@' : k + 0x40);
     else if (k >= KEY_META(0))
-        sprintf(msg, "Unbound key: M-%c", k & 0xFF);
+        put_c(put_s(p, ": M-"), k & 0xFF);
     else if (k >= KEY_F1 && k <= KEY_F10)
-        sprintf(msg, "Unbound key: F%d", k - KEY_F1 + 1);
+        put_l(put_s(p, ": F"), k - KEY_F1 + 1, 0);
     else if (k == KEY_F11 || k == KEY_F12)
-        sprintf(msg, "Unbound key: F%d", k == KEY_F11 ? 11 : 12);
-    else
-        strcpy(msg, "Unbound key");
+        put_l(put_s(p, ": F"), k == KEY_F11 ? 11 : 12, 0);
     set_status_at(msg, ATTR_ERROR, 1);
 }
 
@@ -882,7 +927,7 @@ static void draw_title(void)
     int cols = scr_cols, pluglen = modified ? 0 : 9;
     int verlen, pathlen, pathwidth, statelen, offset, keep, n;
 
-    sprintf(upperleft, "tico16 %s", VERSION);
+    strcpy(upperleft, "tico16 " VERSION);
     memset(row_text, ' ', cols);
     memset(row_attr, ATTR_REVERSE, cols);
     verlen = strlen(upperleft) + 3;
@@ -964,10 +1009,11 @@ static void draw_status(void)
     start = (cols - len) / 2;
     if (start > 1) {
         pad = start - 2;
-        n = sprintf(row_text + pad, "[ %.*s ]", len, status);
+        n = put_s(put_sn(put_s(row_text + pad, "[ "), status, len), " ]")
+            - (row_text + pad);
     } else {
         pad = start;
-        n = sprintf(row_text + pad, "%.*s", len, status);
+        n = put_sn(row_text + pad, status, len) - (row_text + pad);
     }
     if (pad + n > cols)
         n = cols - pad;
@@ -1124,6 +1170,18 @@ static void refresh(void)
 
 /* ------------------------------------------------------------------ */
 
+/* "tico: NAME: MESSAGE" on stderr, or "tico: MESSAGE" with no name */
+static void fail(const char *name, const char *message)
+{
+    fputs("tico: ", stderr);
+    if (name != NULL) {
+        fputs(name, stderr);
+        fputs(": ", stderr);
+    }
+    fputs(message, stderr);
+    fputs("\n", stderr);
+}
+
 int editor_run(const char *name)
 {
     char msg[60];
@@ -1136,21 +1194,21 @@ int editor_run(const char *name)
     state = LOAD_NEW;
     if (name != NULL) {
         if (strlen(name) >= sizeof filename) {
-            fprintf(stderr, "tico: %s: File name too long\n", name);
+            fail(name, "File name too long");
             return 1;
         }
         strcpy(filename, name);
         state = file_load(name, &buf, &format, &ctrlz, &err);
         if (state == LOAD_ERR) {
-            fprintf(stderr, "tico: %s: %s\n", name, err);
+            fail(name, err);
             return 1;
         }
     }
     if (state == LOAD_OK) {
-        sprintf(msg, buf.count - 1 == 1 ? "Read %ld line%s" : "Read %ld lines%s",
-                buf.count - 1,
-                format == FMT_DOS ? " (converted from DOS format)" :
-                format == FMT_MAC ? " (converted from Mac format)" : "");
+        put_s(put_s(put_l(put_s(msg, "Read "), buf.count - 1, 0),
+                    buf.count - 1 == 1 ? " line" : " lines"),
+              format == FMT_DOS ? " (converted from DOS format)" :
+              format == FMT_MAC ? " (converted from Mac format)" : "");
         set_status(msg);
         /* no line break to go by: write DOS, like a new buffer */
         if (format == FMT_NONE)
@@ -1158,7 +1216,7 @@ int editor_run(const char *name)
     } else {
         format = FMT_DOS;
         if (!lines_append(&buf, NULL, 0)) {
-            fprintf(stderr, "tico: Not enough memory\n");
+            fail(NULL, "Not enough memory");
             return 1;
         }
         if (name != NULL)
@@ -1169,7 +1227,7 @@ int editor_run(const char *name)
     if (!scr_init()) {
         scr_done();
         sys_done();
-        fprintf(stderr, "tico: screen too small\n");
+        fail(NULL, "screen too small");
         return 1;
     }
     text_rows = scr_rows - 4;

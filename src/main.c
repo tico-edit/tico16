@@ -13,12 +13,21 @@ static const char *progname = "tico";
 
 static void usage(FILE *fp)
 {
-    fprintf(fp,
+    fputs(
         "Usage: tico [OPTION]... [FILE]\n"
         "Edit FILE, or a new buffer, full screen.\n"
         "\n"
         "  -h, --help     display this help and exit\n"
-        "      --version  output version information and exit\n");
+        "      --version  output version information and exit\n", fp);
+}
+
+/* "tico: MESSAGE 'ARG'" and the pointer to --help, on stderr */
+static void bad_arg(const char *message, const char *arg)
+{
+    fputs(progname, stderr);
+    fputs(message, stderr);
+    fputs(arg, stderr);
+    fputs("'\nTry 'tico --help' for more information.\n", stderr);
 }
 
 int main(int argc, char **argv)
@@ -34,15 +43,13 @@ int main(int argc, char **argv)
             usage(stdout);
             return 0;
         } else if (strcmp(a, "--version") == 0) {
-            printf("tico (tico16) %s\n", VERSION);
+            fputs("tico (tico16) " VERSION "\n", stdout);
             return 0;
         } else if (a[0] == '-') {
-            fprintf(stderr, "%s: unrecognized option '%s'\n", progname, a);
-            fprintf(stderr, "Try 'tico --help' for more information.\n");
+            bad_arg(": unrecognized option '", a);
             return 1;
         } else if (file != NULL) {
-            fprintf(stderr, "%s: extra operand '%s'\n", progname, a);
-            fprintf(stderr, "Try 'tico --help' for more information.\n");
+            bad_arg(": extra operand '", a);
             return 1;
         } else {
             file = a;
