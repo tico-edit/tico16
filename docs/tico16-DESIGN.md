@@ -36,7 +36,7 @@ The program is distributed as a single standalone **`tico.exe`**. It should make
 | Display | IBM-compatible 80×25 text mode, color or monochrome |
 | Input | PC-compatible keyboard |
 | Memory | Conventional DOS memory only; no EMS/XMS required |
-| Compiler | Linux-hosted Open Watcom 2.0 |
+| Compiler | Linux-hosted Open Watcom, with libc16 as the C runtime |
 | Memory model | Compact (near code, far data) |
 | Build system | GNU Make |
 | Binary | Standalone `tico.exe` |
@@ -191,10 +191,10 @@ Follow the conventions in [plicease/dos-hello16](https://github.com/plicease/dos
 make                         # Build tico.exe
 make test                    # Run automated tests, including DOSBox-X
 make clean                   # Remove generated files
-make WATCOM=/path/to/watcom  # Override toolchain location
+make LIBC16_ROOT=../libc16   # Use a local libc16 checkout
 ```
 
-The default toolchain location is `~/opt/watcom`. The Makefile configures the Open Watcom include and executable paths without requiring the user to source an environment script. Compile for 8086 instructions (`-0`) in the compact model (`-mc`).
+The program links [libc16](https://github.com/gr-dos/libc16)'s compact-model library (`LIBC16C.LIB`) instead of Open Watcom's runtime. The Makefile fetches the libc16 release pinned in `scripts/fetch-libc16` and the Open Watcom snapshot it was built with into `build/`, without requiring the user to source an environment script. Compile for 8086 instructions (`-0`) in the compact model (`-mc`).
 
 Tests:
 

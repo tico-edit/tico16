@@ -1,7 +1,8 @@
 # tico16
 
 [tico](https://github.com/tico-edit/tico), the nano-style text editor,
-for 16-bit MS-DOS, built with Open Watcom.
+for 16-bit MS-DOS, built with Open Watcom and
+[libc16](https://github.com/gr-dos/libc16).
 
 `tico.exe` is a compact-model, real-mode 8086 executable (about 30 KB)
 that runs on any DOS from an original IBM PC up. It needs no
@@ -55,15 +56,19 @@ See `DIFFERENCES.md` for where tico16 differs from tico, and
 ## Building and testing
 
 Everything is built and tested on Linux, cross-compiling with the
-Linux-hosted Open Watcom 2.0 toolchain, following the
-[dos-hello16](https://github.com/plicease/dos-hello16) conventions:
+Linux-hosted Open Watcom toolchain and linking libc16's compact-model
+library, `LIBC16C.LIB`, instead of Open Watcom's runtime, following the
+[hello16](https://github.com/gr-dos/hello16) conventions:
 
     make         # builds tico.exe
     make test    # unit tests on the host, then the test suite under DOSBox-X
     make clean
 
-The `Makefile` uses Open Watcom in `~/opt/watcom` by default; override
-with `make WATCOM=/path/to/watcom`. It sets `INCLUDE` and `PATH` itself.
+`make` fetches the libc16 release pinned in `scripts/fetch-libc16` into
+`build/libc16`, checking its SHA-256, and the Open Watcom snapshot it
+was built with into `build/tools`. `make LIBC16_ROOT=../libc16` uses a
+libc16 checkout built with its own `make` instead (libc16's
+`docs/CONSUMERS.md`, "Using libc16").
 
 `make test` needs a host C compiler (`cc`) and `dosbox-x`. It runs:
 
