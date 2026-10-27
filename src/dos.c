@@ -13,7 +13,6 @@
  */
 
 #include <dos.h>
-#include <i86.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -203,6 +202,7 @@ int key_get(void)
 
 #else /* TICO_TEST */
 
+#include <libc16.h>
 #include <stdio.h>
 
 /*
@@ -247,7 +247,15 @@ static void dump_screen(const char *why)
     r.h.bh = page;
     int86(0x10, &r, &r);
     if (path != NULL && (fp = fopen(path, "ab")) != NULL) {
-        fprintf(fp, "=== %s cursor %d %d\r\n", why, r.h.dh, r.h.dl);
+        char num[12];
+
+        fputs("=== ", fp);
+        fputs(why, fp);
+        fputs(" cursor ", fp);
+        fputs(libc16_ltoa(r.h.dh, num, 10), fp);
+        fputc(' ', fp);
+        fputs(libc16_ltoa(r.h.dl, num, 10), fp);
+        fputs("\r\n", fp);
         for (row = 0; row < scr_rows; row++) {
             p = vram + row * scr_cols;
             for (end = scr_cols; end > 0 && (p[end - 1] & 0xFF) == ' ';
@@ -355,8 +363,9 @@ static void __interrupt __far ignore_break(void)
 {
 }
 
-static int __far fail_critical(unsigned deverr, unsigned errcode,
-                               unsigned __far *devhdr)
+/* libc16 calls a _harderr handler __cdecl (its docs/spec/dos.md) */
+static int __cdecl __far fail_critical(unsigned deverr, unsigned errcode,
+                                       unsigned __far *devhdr)
 {
     (void)deverr;
     (void)errcode;
