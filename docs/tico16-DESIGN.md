@@ -71,6 +71,7 @@ The binding source of truth is tico's default keymap (`src/keymap.rs`). v0.01 im
 | Enter | Insert line break |
 | Tab | Insert tab byte |
 | `^O`, F3 | Write Out (filename prompt, pre-filled with the current name) |
+| `M-D` / `M-U` / `M-M` (in Write Out) | Write DOS / Unix / Mac format |
 | `^S` | Save without prompting (prompts for a name if the buffer has none) |
 | `^X`, F2 | Exit, prompting "Save modified buffer?" when modified |
 | `^K`, F9 | Cut current line; consecutive `^K`s append to the cut buffer |
@@ -123,9 +124,9 @@ On load:
 - A CR immediately before an LF is always dropped. The file is DOS format if its **first** line break is CRLF.
 - A bare CR is a line break only on the first line, or once the file is known to be Mac format. Elsewhere it is ordinary content, shown as `^M`.
 - A CR ending the file is a line break.
-- The status line reports `Read N lines`, with tico's `(converted from DOS format)` / `(converted from Mac format)` suffix.
+- The status line reports `Read N lines (Read as DOS format)`, `(Read as Unix format)` or `(Read as Mac format)`; a file with no line break reports `(No line break; will write DOS format)`. This differs from tico's `(converted from ...)` wording and is recorded in `DIFFERENCES.md`.
 
-On save, every line break is written in the buffer's format. A buffer not read from a file (new file or unnamed buffer) is saved in **DOS** format; this deliberately differs from tico (which writes Unix) and is recorded in `DIFFERENCES.md`. There is no way to change a buffer's format (no `M-D`/`M-M` toggles).
+On save, every line break is written in the buffer's format. A buffer not read from a file (new file or unnamed buffer) is saved in **DOS** format; this deliberately differs from tico (which writes Unix) and is recorded in `DIFFERENCES.md`. The Write Out prompt always shows the format it will write (`Write to File [DOS Format]:`, `[Unix Format]`, `[Mac Format]`), and `M-D`, `M-U` and `M-M` there select DOS, Unix or Mac, from `^O` or from `^X`'s save question alike. A change sets the buffer's format at once and marks the buffer modified; cancelling the prompt keeps it, and later `^S` saves use it. Esc then a key is Meta in the prompt, as in the editor; `^C` cancels.
 
 Consequently, files with mixed line endings may be normalized on save, exactly as tico would.
 
@@ -172,7 +173,6 @@ There is explicitly **no external file-change detection**: no timestamp polling,
 - Search and replace (deferred from v0.01)
 - Undo/redo history
 - Mark/region selection
-- Line-ending format toggles
 - Interactive help beyond visible shortcut hints
 - Automatic indentation or soft wrapping
 - External clipboard integration

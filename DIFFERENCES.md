@@ -30,11 +30,26 @@ line of its own: typing at the end of the file goes before it, and it is
 written back after the text on every save, even if the text is deleted.
 A Ctrl+Z anywhere else is ordinary text.
 
-## No line-ending or file options when writing
+## Write Out chooses the format, rather than toggling it
 
-The Write Out prompt has no `M-D`/`M-M` format toggles, append, prepend,
-backup, browser, Tab completion or history. Its label still shows
-`[DOS Format]` or `[Mac Format]`.
+In nano's Write Out prompt `M-D` and `M-M` toggle DOS and Mac format,
+Unix being neither, and the label names only DOS or Mac. In tico16
+`M-D`, `M-U` and `M-M` select DOS, Unix and Mac outright, the label
+always names the format (`[Unix Format]` included), and the shortcut
+bar lists all three. A change applies to the buffer at once and marks it
+modified, so it is kept if the prompt is cancelled (nano applies it only
+when the file is written). Esc then a key works as Meta in the prompt,
+as when editing, so Esc alone doesn't cancel it; `^C` does.
+
+There is no append, prepend, backup, browser, Tab completion or history.
+
+## Opening a file names its format
+
+tico says `(converted from DOS format)` or `(converted from Mac format)`
+after `Read N lines`, and nothing for Unix. tico16 says
+`(Read as DOS format)`, `(Read as Unix format)` or `(Read as Mac
+format)`, since the format is kept, not converted; a file with no line
+break says `(No line break; will write DOS format)`.
 
 ## Saving goes through NAME.$$$
 

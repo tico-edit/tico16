@@ -190,6 +190,57 @@ edit 42 '' '{^G}{Dump}x{Dump}{^X}n'
 # --- a DOS critical error: the handler fails the call, and editing goes on
 edit 43 '' 'ab{Crit}c{Dump}{^X}n'
 
+# --- the format a file was read as
+fixture DETU.TXT 'one\ntwo\n'
+edit 50 detu.txt '{Dump}{^X}'
+fixture DETM.TXT 'one\rtwo\r'
+edit 51 detm.txt '{Dump}{^X}'
+fixture DETN.TXT 'single'
+edit 52 detn.txt '{Dump}{^O}{Dump}{^C}{^X}'
+fixture DETE.TXT ''
+edit 53 dete.txt '{Dump}{^X}'
+fixture DETONE.TXT 'one\n'
+edit 54 detone.txt '{Dump}{^X}'
+# a new buffer writes DOS
+edit 55 '' 'x{^O}{Dump}{^C}{^X}n'
+
+# --- choosing the format in Write Out: Alt keys from ^O
+printf 'echo off\nset PATH=C:\\DOS\n' > AUTOEXEC.BAT
+edit 56 autoexec.bat '{^O}{Dump}{M-D}{Dump}{Enter}{Dump}{^X}'
+edit 57 autoexec.bat '{Dump}{^X}'
+# from ^X, Esc-prefixed, lowercase and uppercase
+fixture TOUNIX.TXT 'a\r\nb\r\n'
+edit 58 tounix.txt 'x{Bsp}{^X}y{Dump}{Esc}u{Dump}{Enter}'
+fixture TOMAC.TXT 'a\r\nb\r\n'
+edit 59 tomac.txt '{^O}{Esc}M{Dump}{Enter}{^X}'
+fixture TOMAC2.TXT 'a\nb\n'
+edit 60 tomac2.txt 'x{Bsp}{^X}y{M-M}{Enter}'
+edit 61 tomac2.txt '{Dump}{^X}'
+# no edits: the change alone marks the buffer modified; ^C keeps the
+# new format, and ^S then writes it
+fixture NOEDIT.TXT 'a\r\nb\r\n'
+edit 62 noedit.txt '{^O}{M-U}{^C}{Dump}{^S}{Dump}{^X}'
+edit 63 noedit.txt '{Dump}{^X}'
+# cancelled, then ^X asks to save
+fixture CANCEL.TXT 'a\r\n'
+edit 64 cancel.txt '{^O}{M-M}{^C}{^X}{Dump}n'
+# choosing the format the buffer already has changes nothing
+fixture SAME.TXT 'a\r\n'
+edit 65 same.txt '{^O}{M-D}{Esc}d{^C}{Dump}{^X}'
+# the name being typed and its cursor survive a change
+fixture NAMED.TXT 'a\n'
+edit 66 named.txt '{^O}{Left}{Left}{Left}{Left}{M-D}X{Dump}{Esc}m{Dump}{^C}{^X}n'
+# Esc Esc and an unknown Meta key don't cancel or type anything
+edit 67 named.txt '{^O}{Esc}{Esc}{Dump}{Esc}q{M-6}{Dump}{^C}{^X}'
+# the format, a new name, and overwriting
+fixture EXIST2.TXT 'old\r\n'
+edit 68 '' 'new{^O}{M-M}exist2.txt{Enter}{Dump}y{^X}'
+fixture ORIG2.TXT 'orig\n'
+edit 69 orig2.txt '{^O}{End}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}other2.txt{M-D}{Enter}{Dump}y{^X}'
+# Ctrl+Z stays at the end
+fixture ZFMT.TXT 'a\r\nb\r\n\032'
+edit 70 zfmt.txt '{^O}{M-U}{Enter}{^X}'
+
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 300 \
     "$DOSBOX" -defaultconf -silent -nogui -nomenu \
     -set "cpu cycles=max" -set "cpu cputype=8086" -set "cpu core=normal" \
@@ -322,7 +373,7 @@ check "no temporary files left" test -z "$(ls | grep -F '$$$')"
 # opening
 rc 20 0
 row 20 1 0 "  tico16 $ver                         dos.txt"
-shows 20 1 '\[ Read 2 lines (converted from DOS format) \]'
+shows 20 1 '\[ Read 2 lines (Read as DOS format) \]'
 row 20 1 23 '^X Exit        ^K Cut         ^C Location'
 row 20 1 24 '^O Write Out   ^U Paste       M-6 Copy'
 rc 21 0
@@ -419,6 +470,89 @@ row 42 2 22 ''
 rc 43 0
 check "step 43: handler fails the call" grep -q '^=== crit al 3 calls 1 deverr 3800 errcode 2' S43.TXT
 row 43 2 1 'abc'
+
+# formats read
+rc 50 0
+shows 50 1 '\[ Read 2 lines (Read as Unix format) \]'
+rc 51 0
+shows 51 1 '\[ Read 2 lines (Read as Mac format) \]'
+rc 52 0
+shows 52 1 '\[ Read 1 line (No line break; will write DOS format) \]'
+shows 52 2 '^Write to File \[DOS Format\]: detn.txt$'
+rc 53 0
+shows 53 1 '\[ Read 0 lines (No line break; will write DOS format) \]'
+rc 54 0
+shows 54 1 '\[ Read 1 line (Read as Unix format) \]'
+rc 55 0
+shows 55 1 '^Write to File \[DOS Format\]:$'
+
+# choosing the format: ^O, Alt
+rc 56 0
+shows 56 1 '^Write to File \[Unix Format\]: autoexec.bat$'
+row 56 1 23 'M-D DOS Format   M-U Unix Format'
+row 56 1 24 '^C Cancel        M-M Mac Format'
+row 56 1 0 "  tico16 $ver                      autoexec.bat"
+shows 56 2 '^Write to File \[DOS Format\]: autoexec.bat$'
+row 56 2 0 "  tico16 $ver                      autoexec.bat                       Modified"
+row 56 2 23 'M-D DOS Format   M-U Unix Format'
+row 56 2 24 '^C Cancel        M-M Mac Format'
+shows 56 3 '\[ Wrote 2 lines \]'
+row 56 3 0 "  tico16 $ver                      autoexec.bat"
+bytes 56 AUTOEXEC.BAT 'echo off\r\nset PATH=C:\\DOS\r\n'
+rc 57 0
+shows 57 1 '\[ Read 2 lines (Read as DOS format) \]'
+# ^X, Esc-prefixed
+rc 58 0
+shows 58 1 '^Write to File \[DOS Format\]: tounix.txt$'
+shows 58 2 '^Write to File \[Unix Format\]: tounix.txt$'
+row 58 2 23 'M-D DOS Format   M-U Unix Format'
+bytes 58 TOUNIX.TXT 'a\nb\n'
+rc 59 0
+shows 59 1 '^Write to File \[Mac Format\]: tomac.txt$'
+bytes 59 TOMAC.TXT 'a\rb\r'
+rc 60 0
+bytes 60 TOMAC2.TXT 'a\rb\r'
+rc 61 0
+shows 61 1 '\[ Read 2 lines (Read as Mac format) \]'
+# no edits, ^C, ^S
+rc 62 0
+shows 62 1 '\[ Cancelled \]'
+row 62 1 0 "  tico16 $ver                       noedit.txt                        Modified"
+shows 62 2 '\[ Wrote 2 lines \]'
+row 62 2 0 "  tico16 $ver                       noedit.txt"
+bytes 62 NOEDIT.TXT 'a\nb\n'
+rc 63 0
+shows 63 1 '\[ Read 2 lines (Read as Unix format) \]'
+rc 64 0
+row 64 1 22 'Save modified buffer?'
+bytes 64 CANCEL.TXT 'a\r\n'
+rc 65 0
+row 65 1 0 "  tico16 $ver                        same.txt"
+bytes 65 SAME.TXT 'a\r\n'
+# the answer and its cursor
+rc 66 0
+shows 66 1 '^Write to File \[DOS Format\]: namedX.txt$' \
+    '^=== dump cursor 22 34$'
+shows 66 2 '^Write to File \[Mac Format\]: namedX.txt$' \
+    '^=== dump cursor 22 34$'
+bytes 66 NAMED.TXT 'a\n'
+rc 67 0
+shows 67 1 '^Write to File \[Unix Format\]: named.txt$'
+shows 67 2 '^Write to File \[Unix Format\]: named.txt$'
+row 67 2 23 'M-D DOS Format   M-U Unix Format'
+row 67 2 24 '^C Cancel        M-M Mac Format'
+bytes 67 NAMED.TXT 'a\n'
+# new name, overwrite
+rc 68 0
+row 68 1 22 'File "exist2.txt" exists; OVERWRITE?'
+bytes 68 EXIST2.TXT 'new\r'
+rc 69 0
+row 69 1 22 'Save file under DIFFERENT NAME?'
+bytes 69 ORIG2.TXT 'orig\n'
+bytes 69 OTHER2.TXT 'orig\r\n'
+rc 70 0
+bytes 70 ZFMT.TXT 'a\nb\n\032'
+check "no temporary files left after format changes" test -z "$(ls | grep -F '$$$')"
 
 # ------------------------------------------------------------------
 

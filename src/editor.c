@@ -532,13 +532,39 @@ static void close_prompt(void)
     redraw_status = redraw_bar = 1;
 }
 
+/* The name of a buffer format, as the status line and prompt show it. */
+static const char *format_name(int fmt)
+{
+    return fmt == FMT_UNIX ? "Unix" : fmt == FMT_MAC ? "Mac" : "DOS";
+}
+
+/* "Write to File [DOS Format]", always naming the format. */
+static void write_label(void)
+{
+    put_s(put_s(put_s(prompt_label, "Write to File ["), format_name(format)),
+          " Format]");
+    redraw_status = 1;
+}
+
 static void ask_filename(void)
 {
-    const char *tag = format == FMT_UNIX ? ""
-                    : format == FMT_MAC ? " [Mac Format]" : " [DOS Format]";
+    open_prompt(P_WRITE, "", answer);
+    write_label();
+}
 
-    put_s(put_s(prompt_label, "Write to File"), tag);
-    open_prompt(P_WRITE, prompt_label, answer);
+/*
+ * M-D, M-U, M-M in the Write Out prompt: write the buffer in this
+ * format from now on.  The buffer's format changes at once, so it
+ * stays changed if the prompt is then cancelled, and the buffer is
+ * marked modified, so the conversion isn't lost on exit.
+ */
+static void set_format(int fmt)
+{
+    if (format != fmt) {
+        format = fmt;
+        set_modified();
+    }
+    write_label();
 }
 
 static void finish_write(void)
@@ -653,6 +679,15 @@ static void yes_no_key(int k)
 static void text_prompt_key(int k)
 {
     switch (k) {
+    case KEY_META('D'):
+        set_format(FMT_DOS);
+        return;
+    case KEY_META('U'):
+        set_format(FMT_UNIX);
+        return;
+    case KEY_META('M'):
+        set_format(FMT_MAC);
+        return;
     case KEY_ENTER:
         if (answer_len == 0) {
             cancelled();
@@ -662,7 +697,6 @@ static void text_prompt_key(int k)
         }
         return;
     case CTRL('C'):
-    case KEY_ESC:
         cancelled();
         return;
     case KEY_LEFT:
@@ -695,6 +729,10 @@ static void text_prompt_key(int k)
         }
         break;
     default:
+        if (k >= KEY_META(0)) {
+            scr_beep();         /* no such Meta key here */
+            return;
+        }
         if (k >= 0x20 && k <= 0xFF && k != 0x7F &&
             answer_len < sizeof answer - 1) {
             memmove(answer + answer_x + 1, answer + answer_x,
@@ -823,17 +861,14 @@ static void edit_key(int k)
 
 static void handle_key(int k)
 {
-    if (prompt == P_WRITE) {
-        text_prompt_key(k);
-        return;
-    }
-    if (prompt != P_NONE) {
+    if (prompt != P_NONE && prompt != P_WRITE) {
         yes_no_key(k);
         return;
     }
     /* nano's blank_it_when_expired */
-    if (status_count > 0 && --status_count == 0)
+    if (prompt == P_NONE && status_count > 0 && --status_count == 0)
         clear_status();
+    /* Esc, key is Meta+key, in the Write Out prompt as when editing */
     if (meta_pending) {
         meta_pending = 0;
         if (k == KEY_ESC)
@@ -846,7 +881,10 @@ static void handle_key(int k)
         meta_pending = 1;
         return;
     }
-    edit_key(k);
+    if (prompt == P_WRITE)
+        text_prompt_key(k);
+    else
+        edit_key(k);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1033,7 +1071,8 @@ static const shortcut main_keys[] = {
     {"^C", "Location"}, {"M-6", "Copy"},
 };
 static const shortcut write_keys[] = {
-    {"^C", "Cancel"},
+    {"M-D", "DOS Format"}, {"^C", "Cancel"},
+    {"M-U", "Unix Format"}, {"M-M", "Mac Format"},
 };
 static const shortcut yes_no_keys[] = {
     {"Y", "Yes"}, {"N", "No"}, {"", ""}, {"^C", "Cancel"},
@@ -1184,7 +1223,7 @@ static void fail(const char *name, const char *message)
 
 int editor_run(const char *name)
 {
-    char msg[60];
+    char msg[80], *p;
     const char *err;
     int state;
 
@@ -1205,14 +1244,17 @@ int editor_run(const char *name)
         }
     }
     if (state == LOAD_OK) {
-        put_s(put_s(put_l(put_s(msg, "Read "), buf.count - 1, 0),
-                    buf.count - 1 == 1 ? " line" : " lines"),
-              format == FMT_DOS ? " (converted from DOS format)" :
-              format == FMT_MAC ? " (converted from Mac format)" : "");
-        set_status(msg);
-        /* no line break to go by: write DOS, like a new buffer */
-        if (format == FMT_NONE)
+        p = put_s(put_l(put_s(msg, "Read "), buf.count - 1, 0),
+                  buf.count - 1 == 1 ? " line" : " lines");
+        if (format == FMT_NONE) {
+            /* no line break to go by: write DOS, like a new buffer */
+            put_s(p, " (No line break; will write DOS format)");
             format = FMT_DOS;
+        } else {
+            put_s(put_s(put_s(p, " (Read as "), format_name(format)),
+                  " format)");
+        }
+        set_status(msg);
     } else {
         format = FMT_DOS;
         if (!lines_append(&buf, NULL, 0)) {

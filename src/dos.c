@@ -214,7 +214,8 @@ int key_get(void)
  * screen to %TICOSCR%.  {Crit} raises a critical error as DOS would
  * (INT 24h, see raise_critical) and appends what the handler did to
  * %TICOSCR%.  When the script runs out the editor stops with exit status
- * 3.
+ * 3.  {M-6}, {M-\}, {M-/}, {M-D}, {M-U} and {M-M} are typed as Alt keys
+ * (a BIOS scan code); other {M-x} as Esc, x.
  */
 
 /* What fail_critical was called with, for {Crit} */
@@ -237,6 +238,7 @@ static const struct {
     {"F5", 0x3F00}, {"F6", 0x4000}, {"F7", 0x4100}, {"F8", 0x4200},
     {"F9", 0x4300}, {"F10", 0x4400}, {"F11", 0x8500}, {"F12", 0x8600},
     {"M-6", 0x7D00}, {"M-\\", 0x2B00}, {"M-/", 0x3500},
+    {"M-D", 0x2000}, {"M-U", 0x1600}, {"M-M", 0x3200},
 };
 
 static void dump_screen(const char *why)
