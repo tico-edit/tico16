@@ -125,6 +125,16 @@ fails "missing object" "$work/missing.map" "$objs" "$first is not in the map"
 # a map it can't read the way it expects
 alter garbled "s/^Module: $(re "$first")(.*/Module: $(printf '%s' "$first" | sed 's/[/&\\]/\\&/g')/"
 fails "garbled module line" "$work/garbled.map" "$objs" "unrecognized module line"
+# module records not in the exact "Module: " form aren't skipped
+for v in tab:'Module:\t' space:' Module: ' case:'MODULE: ' nospace:'Module:'; do
+    name=${v%%:*}
+    alter "mod$name" "/^Module: $(re "$first")(/a\\
+${v#*:}build/r/extra.obj(build/r/extra.obj)"
+    fails "module record, $name" "$work/mod$name.map" "$objs" \
+        "unrecognized module line: "
+    check "module record, $name: the only problem" \
+        test "$(wc -l < "$work/err")" -eq 1
+done
 alter nolibs '/Libraries Used/d'
 fails "no Libraries Used" "$work/nolibs.map" "$objs" \
     "no Libraries Used section in the map"

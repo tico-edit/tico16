@@ -98,7 +98,9 @@ checks that:
   else.
 
 Anything else fails the check. That includes any Open Watcom runtime
-module or library, and also a module line or map it can't parse. A
+module or library, and also a module line or map it can't parse. Any
+line with `module:` in it (in any case) that isn't exactly
+`Module: FILE(MEMBER)` is rejected, not skipped. A
 failure prints the offending module or library, deletes the executable
 and stops the build, so neither `make`, `make test` nor CI can accept an
 unchecked link. The summary line, e.g. `check-link: 5 objects and 42
@@ -119,7 +121,9 @@ line. The check is adapted from
   objects, along with altered copies of the release map: an Open Watcom
   `clibc.lib` module, a second library, a name that isn't a module of
   `LIBC16C.LIB`, a stray object, a missing object, a garbled module
-  line, a missing "Libraries Used" section and an empty member list.
+  line, module records written `Module:` plus a tab, ` Module: `,
+  `MODULE: ` or `Module:` with no space, a missing "Libraries Used"
+  section and an empty member list.
   Each rejection must name the problem;
 
 - `tests/unit/test_text.c`: the buffer and line-ending code

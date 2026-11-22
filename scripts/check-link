@@ -18,10 +18,12 @@
 #   |   Libraries Used   |   a boxed heading, followed after its rule
 #                            by one line per library, up to the next box
 #
-# Anything else in a Module line, and a map without the Libraries Used
-# section, fails the check.  The modules are listed on standard output,
-# a summary last; problems go to standard error, and the exit status is
-# 1 if there are any.
+# Any other line that looks like a module record (one with "module:" in
+# it, in any case, such as "Module:" and a tab), anything else in a
+# Module line, and a map without the Libraries Used section, fail the
+# check rather than being skipped.  The modules are listed on standard
+# output, a summary last; problems go to standard error, and the exit
+# status is 1 if there are any.
 #
 # usage: scripts/check-link [-m MEMBERS] MAP LIBRARY OBJECT...
 
@@ -91,6 +93,11 @@ BEGIN {
         print "check-link: " m " is not from the objects or " lib > "/dev/stderr"
         bad++
     }
+    next
+}
+tolower($0) ~ /module:/ {
+    print "check-link: unrecognized module line: " $0 > "/dev/stderr"
+    bad++
     next
 }
 /\|   Libraries Used   \|/ { inlibs = 1; seen = 1; next }
