@@ -194,7 +194,7 @@ make clean                   # Remove generated files
 make LIBC16_ROOT=../libc16   # Use a local libc16 checkout
 ```
 
-The program links [libc16](https://github.com/gr-dos/libc16)'s compact-model library (`LIBC16C.LIB`) instead of Open Watcom's runtime. The Makefile fetches the libc16 release pinned in `scripts/fetch-libc16` and the Open Watcom snapshot it was built with into `build/`, without requiring the user to source an environment script. Compile for 8086 instructions (`-0`) in the compact model (`-mc`).
+The program links [libc16](https://github.com/gr-dos/libc16)'s compact-model library (`LIBC16C.LIB`) instead of Open Watcom's runtime. The Makefile fetches the libc16 release pinned in `scripts/fetch-libc16` and the Open Watcom snapshot it was built with into `build/`, without requiring the user to source an environment script. Compile for 8086 instructions (`-0`) in the compact model (`-mc`). Every link of `tico.exe` and `tico_t.exe` is checked from the linker map by `scripts/check-link`: every module must be one of that build's objects or a module of `LIBC16C.LIB`, and no other library may be used. An executable that fails the check is deleted (see `README.md`, "Link check").
 
 Tests:
 

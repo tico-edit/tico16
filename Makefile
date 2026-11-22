@@ -37,14 +37,30 @@ all: tico.exe
 R_OBJS = $(NAMES:%=build/r/%.obj)
 T_OBJS = $(NAMES:%=build/t/%.obj)
 
-tico.exe: $(R_OBJS) $(LIBC16) $(TOOLS_ENV)
+# Each link is checked from its map (scripts/check-link): every module
+# must be one of the objects or a member of LIBC16C.LIB, and no other
+# library may be used.  A link that fails the check is deleted.
+CHECK_LINK = scripts/check-link -m build/libc16.lst
+
+tico.exe: $(R_OBJS) $(LIBC16) $(TOOLS_ENV) build/libc16.lst scripts/check-link
 	$(WATCOM_ENV) && wlink $(LDOPTS), map=build/r/tico.map \
 	  format dos name $@ $(R_OBJS:%=file %) library $(LIBC16)
+	$(CHECK_LINK) build/r/tico.map $(LIBC16) $(R_OBJS) > build/r/link.txt \
+	  || { rm -f $@; exit 1; }
+	tail -1 build/r/link.txt
 
 # The test build: keys from a script, screen dumps to a file.
-tico_t.exe: $(T_OBJS) $(LIBC16) $(TOOLS_ENV)
+tico_t.exe: $(T_OBJS) $(LIBC16) $(TOOLS_ENV) build/libc16.lst scripts/check-link
 	$(WATCOM_ENV) && wlink $(LDOPTS), map=build/t/tico_t.map \
 	  format dos name $@ $(T_OBJS:%=file %) library $(LIBC16)
+	$(CHECK_LINK) build/t/tico_t.map $(LIBC16) $(T_OBJS) > build/t/link.txt \
+	  || { rm -f $@; exit 1; }
+	tail -1 build/t/link.txt
+
+# The modules of LIBC16C.LIB, for check-link.
+build/libc16.lst: $(LIBC16) $(TOOLS_ENV)
+	$(WATCOM_ENV) && wlib -q -l=$@.tmp $(LIBC16)
+	mv $@.tmp $@
 
 build/r/%.obj: src/%.c $(HEADERS) VERSION $(LIBC16) $(TOOLS_ENV)
 	mkdir -p build/r
@@ -74,10 +90,16 @@ build/test_text: tests/unit/test_text.c src/buffer.c src/text.c $(HEADERS)
 unit: build/test_text
 	./build/test_text
 
-test: unit tico.exe tico_t.exe
+# check-link itself: the real maps pass, altered ones fail.
+linktest: tico.exe tico_t.exe
+	sh tests/check-link.sh build/libc16.lst $(LIBC16) \
+	  build/r/tico.map "$(R_OBJS)" build/t/tico_t.map "$(T_OBJS)"
+
+test: unit linktest tico.exe tico_t.exe
 	sh tests/run.sh $(CURDIR)/tico.exe $(CURDIR)/tico_t.exe
 
 clean:
-	rm -rf *.o *.obj *.err tico.exe tico_t.exe build/r build/t build/test_text
+	rm -rf *.o *.obj *.err tico.exe tico_t.exe build/r build/t build/test_text \
+	  build/libc16.lst build/check-link
 
-.PHONY: all unit test clean
+.PHONY: all unit linktest test clean

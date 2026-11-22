@@ -1,0 +1,122 @@
+#!/bin/sh
+#
+# Check from wlink's map where every module in an executable came from:
+# each one must be one of the object files named, or a member of the one
+# library named, and that library must be the only one the linker used.
+# This proves from the link itself, not from the options that ask for
+# it (wcc -zl, wlink nodefaultlibs), that no Open Watcom runtime library
+# went into the executable.  Adapted from gr-dos/patch16.
+#
+# With -m, MEMBERS is the library's listing from wlib -l, and each
+# module taken from the library must be one of the modules it lists.
+#
+# The map format assumed (Open Watcom wlink, "option map"):
+#
+#   Module: FILE(MEMBER)     one per linked module; for an object file
+#                            MEMBER is FILE itself, for a library module
+#                            it is the module's name in the library
+#   |   Libraries Used   |   a boxed heading, followed after its rule
+#                            by one line per library, up to the next box
+#
+# Anything else in a Module line, and a map without the Libraries Used
+# section, fails the check.  The modules are listed on standard output,
+# a summary last; problems go to standard error, and the exit status is
+# 1 if there are any.
+#
+# usage: scripts/check-link [-m MEMBERS] MAP LIBRARY OBJECT...
+
+set -eu
+
+members=
+if [ $# -ge 2 ] && [ "$1" = -m ]; then
+    members=$2
+    shift 2
+    [ -r "$members" ] || { echo "check-link: can't read $members" >&2; exit 2; }
+fi
+[ $# -ge 3 ] || {
+    echo "usage: $0 [-m MEMBERS] MAP LIBRARY OBJECT..." >&2
+    exit 2
+}
+map=$1 lib=$2
+shift 2
+[ -r "$map" ] || { echo "check-link: can't read $map" >&2; exit 2; }
+
+# wlib -l lines are SYMBOL....MODULE; a blank MEMBERS file for none
+awk -v lib="$lib" -v objs="$*" -v members="$members" '
+BEGIN {
+    n = split(objs, o, " ")
+    for (i = 1; i <= n; i++) obj[o[i]] = 1
+    if (members != "") {
+        while ((getline l < members) > 0) {
+            sub(/\r$/, "", l)
+            if (l ~ /\.\.[^.]/) {
+                sub(/^.*\.\./, "", l)
+                member[l] = 1
+                nmembers++
+            }
+        }
+        if (!nmembers) {
+            print "check-link: no modules listed in " members > "/dev/stderr"
+            exit 1
+        }
+    }
+}
+{ sub(/\r$/, "") }
+/^Module: / {
+    m = substr($0, 9)
+    p = index(m, "(")
+    if (p == 0 || substr(m, length(m)) != ")") {
+        print "check-link: unrecognized module line: " $0 > "/dev/stderr"
+        bad++
+        next
+    }
+    file = substr(m, 1, p - 1)
+    mem = substr(m, p + 1, length(m) - p - 1)
+    if (file in obj && mem == file) {
+        if (file in linked) {
+            print "check-link: " file " is linked twice" > "/dev/stderr"
+            bad++
+        }
+        linked[file] = 1
+        own++
+        print "object   " file
+    } else if (file == lib) {
+        if (members != "" && !(mem in member)) {
+            print "check-link: " mem " is not a module of " lib > "/dev/stderr"
+            bad++
+        }
+        libs++
+        print "library  " mem
+    } else {
+        print "check-link: " m " is not from the objects or " lib > "/dev/stderr"
+        bad++
+    }
+    next
+}
+/\|   Libraries Used   \|/ { inlibs = 1; seen = 1; next }
+inlibs && /\|/ { inlibs = 0 }
+inlibs && /^[^ +]/ {
+    used++
+    if ($0 != lib) {
+        print "check-link: the linker used " $0 > "/dev/stderr"
+        bad++
+    }
+}
+END {
+    if (members != "" && !nmembers) exit 1
+    if (!seen) {
+        print "check-link: no Libraries Used section in the map" > "/dev/stderr"
+        exit 1
+    }
+    for (f in obj)
+        if (!(f in linked)) {
+            print "check-link: " f " is not in the map" > "/dev/stderr"
+            bad++
+        }
+    if (used != 1) {
+        print "check-link: " used + 0 " libraries used, not 1" > "/dev/stderr"
+        bad++
+    }
+    if (bad) exit 1
+    print "check-link: " own " objects and " libs " modules of " lib "; no other library"
+}' "$map"
