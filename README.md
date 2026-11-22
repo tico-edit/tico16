@@ -81,7 +81,50 @@ was built with into `build/tools`. `make LIBC16_ROOT=../libc16` uses a
 libc16 checkout built with its own `make` instead (libc16's
 `docs/CONSUMERS.md`, "Using libc16").
 
+### Link check
+
+The compiler is told to name no default library (`wcc -zl`) and the
+linker to use none (`wlink option nodefaultlibs`), with `LIBC16C.LIB` as
+the only library. `scripts/check-link` then proves from the link itself
+that this worked. After `tico.exe` and `tico_t.exe` are each linked, it
+reads the linker's map (`build/r/tico.map`, `build/t/tico_t.map`) and
+checks that:
+
+- each module is either one of that build's own objects (`build/r/*.obj`
+  or `build/t/*.obj`), or a module of `LIBC16C.LIB` listed by
+  `wlib -l` (`build/libc16.lst`);
+- each object is linked exactly once;
+- the map's "Libraries Used" section names `LIBC16C.LIB` and nothing
+  else.
+
+Anything else fails the check. That includes any Open Watcom runtime
+module or library, and also a module line or map it can't parse. Any
+line with `module:` in it (in any case) that isn't exactly
+`Module: FILE(MEMBER)` is rejected, not skipped. A
+failure prints the offending module or library, deletes the executable
+and stops the build, so neither `make`, `make test` nor CI can accept an
+unchecked link. The summary line, e.g. `check-link: 5 objects and 42
+modules of build/libc16/lib/LIBC16C.LIB; no other library`, is printed,
+and the full module list is left in `build/r/link.txt` (`build/t/link.txt`).
+
+The map format the check relies on (Open Watcom `wlink` `option map`):
+one `Module: FILE(MEMBER)` line per linked module, where MEMBER is FILE
+itself for an object file and the module's name for a library member,
+and a boxed `|   Libraries Used   |` heading followed by one library per
+line. The check is adapted from
+[patch16](https://github.com/gr-dos/patch16)'s.
+
 `make test` needs a host C compiler (`cc`) and `dosbox-x`. It runs:
+
+- `tests/check-link.sh`: `scripts/check-link` accepts the real maps of
+  both builds, and rejects each map checked against the other build's
+  objects, along with altered copies of the release map: an Open Watcom
+  `clibc.lib` module, a second library, a name that isn't a module of
+  `LIBC16C.LIB`, a stray object, a missing object, a garbled module
+  line, module records written `Module:` plus a tab, ` Module: `,
+  `MODULE: ` or `Module:` with no space, a missing "Libraries Used"
+  section and an empty member list.
+  Each rejection must name the problem;
 
 - `tests/unit/test_text.c`: the buffer and line-ending code
   (`src/buffer.c`, `src/text.c`), compiled for the host;
