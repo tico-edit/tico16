@@ -41,12 +41,15 @@ static int quitting;
 static int meta_pending;        /* Esc seen: the next key is Meta */
 
 /* prompts */
-enum { P_NONE, P_WRITE, P_EXIT, P_DIFFNAME, P_OVERWRITE };
+enum { P_NONE, P_WRITE, P_SEARCH, P_EXIT, P_DIFFNAME, P_OVERWRITE };
+/* the prompts that take a line of text, rather than a yes or no */
+#define TEXT_PROMPT(p) ((p) == P_WRITE || (p) == P_SEARCH)
 static int prompt;
 static char prompt_label[NAMEMAX + 40];
 static char answer[NAMEMAX];
 static unsigned answer_len, answer_x;
 static int exiting;             /* the write was asked for by ^X */
+static char last_search[NAMEMAX];  /* empty: nothing searched for yet */
 
 /* drawing state: what is on the screen, and what needs redrawing */
 static int full_redraw = 1;
@@ -519,7 +522,8 @@ static void do_location(void)
 static void open_prompt(int kind, const char *label, const char *given)
 {
     prompt = kind;
-    strcpy(prompt_label, label);
+    if (label != prompt_label)
+        strcpy(prompt_label, label);
     strncpy(answer, given, sizeof answer - 1);
     answer[sizeof answer - 1] = 0;
     answer_len = answer_x = strlen(answer);
@@ -676,20 +680,25 @@ static void yes_no_key(int k)
     }
 }
 
+static void search_answer(void);
+
 static void text_prompt_key(int k)
 {
     switch (k) {
     case KEY_META('D'):
-        set_format(FMT_DOS);
-        return;
     case KEY_META('U'):
-        set_format(FMT_UNIX);
-        return;
     case KEY_META('M'):
-        set_format(FMT_MAC);
+        if (prompt != P_WRITE) {
+            scr_beep();
+            return;
+        }
+        set_format(k == KEY_META('D') ? FMT_DOS :
+                   k == KEY_META('U') ? FMT_UNIX : FMT_MAC);
         return;
     case KEY_ENTER:
-        if (answer_len == 0) {
+        if (prompt == P_SEARCH) {
+            search_answer();
+        } else if (answer_len == 0) {
             cancelled();
         } else {
             close_prompt();
@@ -743,6 +752,132 @@ static void text_prompt_key(int k)
         break;
     }
     redraw_status = 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* searching: ^W, nano's do_search_forward, always case-insensitive and
+ * literal */
+
+#define NO_MATCH 0xFFFFu        /* lines are shorter than this */
+
+/* Case folding is ASCII only: A-Z match a-z, other bytes only themselves
+ * (bytes 128-255 are code page characters, of no known case). */
+static unsigned char fold(unsigned char c)
+{
+    return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;
+}
+
+/* The first match of s (n > 0 bytes, folded) in l starting from byte
+ * from to byte to, or NO_MATCH. */
+static unsigned find_in(const line *l, unsigned from, unsigned to,
+                        const char *s, unsigned n)
+{
+    const char *t = l->text;
+    unsigned i, j;
+
+    if (l->len < n)
+        return NO_MATCH;
+    if (to > l->len - n)
+        to = l->len - n;
+    for (i = from; i <= to; i++) {
+        for (j = 0; j < n && fold(t[i + j]) == (unsigned char)s[j]; j++)
+            ;
+        if (j == n)
+            return i;
+    }
+    return NO_MATCH;
+}
+
+/*
+ * nano's findnextstr and go_looking: the first match after the cursor,
+ * going on line by line, around the end of the buffer to the top and
+ * back to the cursor line, where only a match up to the cursor counts,
+ * so a match at the cursor is found last ("This is the only
+ * occurrence").  A match off the screen is centered, as in nano.
+ */
+static void search_for(const char *s)
+{
+    char needle[NAMEMAX], msg[100];
+    unsigned n, i, x;
+    line *l = cur;
+    long no = cur_no;
+    int wrapped = 0, room;
+
+    for (n = 0; s[n]; n++)
+        needle[n] = fold(s[n]);
+    x = cur_x < cur->len ? find_in(cur, cur_x + 1, NO_MATCH, needle, n)
+                         : NO_MATCH;
+    while (x == NO_MATCH) {
+        if (l->next != NULL) {
+            l = l->next;
+            no++;
+        } else {
+            l = buf.top;
+            no = 1;
+            wrapped = 1;
+        }
+        if (l == cur) {
+            x = find_in(l, 0, cur_x, needle, n);
+            if (x == NO_MATCH) {
+                /* nano's not_found_msg: the term cut to half the width */
+                room = scr_cols / 2;
+                if (room > (int)sizeof msg - 20)
+                    room = sizeof msg - 20;
+                i = n > (unsigned)room ? (unsigned)room : n;
+                put_s(put_s(put_sn(put_c(msg, '"'), s, i),
+                            i < n ? "..." : ""), "\" not found");
+                set_status_at(msg, ATTR_ERROR, 20);
+                return;
+            }
+            break;
+        }
+        x = find_in(l, 0, NO_MATCH, needle, n);
+    }
+    if (l == cur && x == cur_x) {
+        set_status("This is the only occurrence");
+    } else if (wrapped) {
+        set_status("Search Wrapped");
+    } else {
+        clear_status();
+    }
+    cur = l;
+    cur_no = no;
+    cur_x = x;
+    update_want();
+    if (cur_no < top_no || cur_no >= top_no + text_rows) {
+        top_no = cur_no - text_rows / 2;
+        if (top_no < 1)
+            top_no = 1;
+    }
+}
+
+/* "Search [last]", the last term cut to a third of the width. */
+static void do_search(void)
+{
+    unsigned n = strlen(last_search), room = scr_cols / 3;
+    char *p = put_s(prompt_label, "Search");
+
+    if (n > 0) {
+        if (room > NAMEMAX)
+            room = NAMEMAX;
+        p = put_s(put_sn(put_s(p, " ["), last_search, n < room ? n : room),
+                  n > room ? "..." : "");
+        put_s(p, "]");
+    }
+    open_prompt(P_SEARCH, prompt_label, "");
+}
+
+/* Enter at the Search prompt: nothing typed repeats the last search. */
+static void search_answer(void)
+{
+    close_prompt();
+    if (answer_len > 0) {
+        memcpy(last_search, answer, answer_len + 1);
+    } else if (last_search[0] == 0) {
+        set_status("Cancelled");
+        return;
+    }
+    search_for(last_search);
 }
 
 /* ------------------------------------------------------------------ */
@@ -839,6 +974,10 @@ static void edit_key(int k)
     case KEY_F11:
         do_location();
         break;
+    case CTRL('W'):
+    case KEY_EXT(0x40):                 /* F6 */
+        do_search();
+        break;
     case CTRL('O'):
     case KEY_EXT(0x3D):                 /* F3 */
         write_out(0, 1);
@@ -861,14 +1000,14 @@ static void edit_key(int k)
 
 static void handle_key(int k)
 {
-    if (prompt != P_NONE && prompt != P_WRITE) {
+    if (prompt != P_NONE && !TEXT_PROMPT(prompt)) {
         yes_no_key(k);
         return;
     }
     /* nano's blank_it_when_expired */
     if (prompt == P_NONE && status_count > 0 && --status_count == 0)
         clear_status();
-    /* Esc, key is Meta+key, in the Write Out prompt as when editing */
+    /* Esc, key is Meta+key, in the text prompts as when editing */
     if (meta_pending) {
         meta_pending = 0;
         if (k == KEY_ESC)
@@ -881,7 +1020,7 @@ static void handle_key(int k)
         meta_pending = 1;
         return;
     }
-    if (prompt == P_WRITE)
+    if (TEXT_PROMPT(prompt))
         text_prompt_key(k);
     else
         edit_key(k);
@@ -1022,7 +1161,7 @@ static void draw_status(void)
         memset(row_attr, ATTR_REVERSE, cols);
         n = plen < cols ? plen : cols;
         memcpy(row_text, prompt_label, n);
-        if (prompt == P_WRITE && n + 2 <= cols) {
+        if (TEXT_PROMPT(prompt) && n + 2 <= cols) {
             /* the label, ": ", and the answer, scrolled to show the cursor */
             row_text[n++] = ':';
             row_text[n++] = ' ';
@@ -1067,8 +1206,11 @@ typedef struct {
 
 /* tico's SHORTCUT_PRIORITY order, implemented entries only */
 static const shortcut main_keys[] = {
-    {"^X", "Exit"}, {"^O", "Write Out"}, {"^K", "Cut"}, {"^U", "Paste"},
-    {"^C", "Location"}, {"M-6", "Copy"},
+    {"^X", "Exit"}, {"^O", "Write Out"}, {"^W", "Where Is"}, {"^K", "Cut"},
+    {"^U", "Paste"}, {"^C", "Location"}, {"M-6", "Copy"},
+};
+static const shortcut search_keys[] = {
+    {"^C", "Cancel"},
 };
 static const shortcut write_keys[] = {
     {"M-D", "DOS Format"}, {"^C", "Cancel"},
@@ -1090,6 +1232,9 @@ static void draw_bar(void)
     } else if (prompt == P_WRITE) {
         keys = write_keys;
         count = sizeof write_keys / sizeof write_keys[0];
+    } else if (prompt == P_SEARCH) {
+        keys = search_keys;
+        count = sizeof search_keys / sizeof search_keys[0];
     } else {
         keys = yes_no_keys;
         count = sizeof yes_no_keys / sizeof yes_no_keys[0];
@@ -1195,7 +1340,7 @@ static void refresh(void)
 
     if (prompt != P_NONE) {
         n = strlen(prompt_label);
-        if (prompt == P_WRITE) {
+        if (TEXT_PROMPT(prompt)) {
             n += 2 + answer_x;
             if (n > scr_cols - 1)
                 n = scr_cols - 1;

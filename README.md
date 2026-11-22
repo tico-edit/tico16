@@ -33,6 +33,7 @@ a file that can't be read (a directory, or too big for memory).
 | `M-6` | Copy the line |
 | `^U` (F10) | Paste |
 | `^C` (F11) | Show the cursor position |
+| `^W` (F6) | Where Is: search forward; Enter alone repeats the last search |
 | `^O` (F3) | Write Out, asking for the file name |
 | `M-D` `M-U` `M-M` | In Write Out: write DOS, Unix or Mac format |
 | `^S` | Save |
@@ -60,6 +61,24 @@ buffer's format at once and marks it modified; cancelling the prompt
 keeps the new format, and later `^S` saves use it.
 
 A trailing Ctrl+Z is kept. Bytes are not converted in any way.
+
+## Search
+
+`^W` asks `Search:` and finds the next match after the cursor, moving the
+cursor to its start. The search is always literal and ignores case: `*`,
+`?`, `[`, `.`, `^`, `$` and the rest are ordinary characters, and only
+the letters A-Z and a-z fold together (bytes 128-255 match only
+themselves). It goes on line by line, and past the end of the file it
+continues from the top, saying `Search Wrapped`. Back on the starting
+line it counts a match only up to the cursor, so a match under the
+cursor is found last and reported as `This is the only occurrence`. If
+there is no match, it says `"TERM" not found` and the cursor stays put.
+A match off the screen is centered in the view. Searching never changes
+the text or marks it modified.
+
+The last term is remembered and shown in the prompt, `Search [term]:`,
+and Enter with nothing typed searches for it again. `^C` cancels,
+leaving the cursor and the remembered term as they were.
 
 See `DIFFERENCES.md` for where tico16 differs from tico, and
 `docs/tico16-DESIGN.md` for the design.

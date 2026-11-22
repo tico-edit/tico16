@@ -49,7 +49,7 @@ Match the actual tico layout and behavior as closely as possible within an 80×2
 
 The screen comprises a title bar, editable viewport, status/message line, and a two-line shortcut bar, as in tico. The title bar shows `tico16 VERSION` (where tico shows `tico VERSION`), the filename (or `New Buffer`), and `Modified` when changed. The cursor position is reported on demand with `^C` (Location), in tico's format: `line L/N (P%), col C/W (P%), char X/T (P%)`.
 
-The shortcut bar uses tico's main-menu priority order (`SHORTCUT_PRIORITY` in tico's `src/ui.rs`) with unimplemented entries dropped, laid out in tico's column sizing. For v0.01 that is: Exit, Write Out, Cut, Paste, Location, Copy. Only implemented commands are shown.
+The shortcut bar uses tico's main-menu priority order (`SHORTCUT_PRIORITY` in tico's `src/ui.rs`) with unimplemented entries dropped, laid out in tico's column sizing. For v0.01 that is: Exit, Write Out, Cut, Paste, Location, Copy; Where Is (after Write Out) is added in v0.04. Only implemented commands are shown.
 
 Use direct text-video-memory access for responsive drawing, with detection of color (`B800h`) versus monochrome (`B000h`) adapters. BIOS video calls may be used for initialization and cursor management. Prefer incremental updates over full-screen redraws. Avoid per-character DOS/BIOS output calls. Do not assume VGA-specific capabilities. CGA snow avoidance is **not** implemented initially; keep video writes behind one small routine so retrace-synchronized writes can be added later without restructuring.
 
@@ -78,12 +78,15 @@ The binding source of truth is tico's default keymap (`src/keymap.rs`). v0.01 im
 | `M-6` | Copy current line into the cut buffer |
 | `^U`, F10 | Paste cut buffer |
 | `^C`, F11 | Report cursor position (Location) |
+| `^W`, F6 | Where Is: forward search, literal and case-insensitive (since v0.04) |
 
 Meta keys can be typed as Alt+key or as Esc followed by the key, as in nano. Any other key reports tico's `Unbound key: KEY`. Status messages follow tico's code: "Copied", "Pasted", "Nothing was cut", "Cancelled", and so on; `^K` clears the status line.
 
 Use BIOS keyboard input (`INT 16h`) without a custom keyboard interrupt handler. Some Alt combinations (`M-\`, `M-/`) are only reported by enhanced-keyboard BIOS services (`INT 16h` AH=10h); detect and use those when available and fall back to AH=00h, where the `^Home`/`^End` equivalents still work.
 
 Install INT 23h (Ctrl+C) and INT 1Bh (Ctrl+Break) handlers that ignore the break, restoring the original vectors on exit, so DOS cannot abort the editor mid-session.
+
+`^W` (since v0.04) searches forward from the cursor, always literal and ASCII case-insensitive, with nano's wrap-around, "Search Wrapped", "This is the only occurrence" and `"TERM" not found` reporting, and Enter at an empty prompt repeating the last term (README, "Search"). There is no regex, case-sensitive, backward, replace or history support.
 
 The first version does **not** include search, search-and-replace, undo/redo, interactive help, mark/region selection, or clipboard integration. Omitted commands must not be shown as available.
 
@@ -170,7 +173,7 @@ There is explicitly **no external file-change detection**: no timestamp polling,
 - Unicode conversion or detection
 - Mouse support
 - Multiple buffers, windows, or split panes
-- Search and replace (deferred from v0.01)
+- Replace, and search options beyond plain forward case-insensitive search
 - Undo/redo history
 - Mark/region selection
 - Interactive help beyond visible shortcut hints
