@@ -241,6 +241,35 @@ edit 69 orig2.txt '{^O}{End}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}{Bsp}other2.
 fixture ZFMT.TXT 'a\r\nb\r\n\032'
 edit 70 zfmt.txt '{^O}{M-U}{Enter}{^X}'
 
+# --- ^W search: case-insensitive, literal
+fixture SRCH.TXT 'Alpha beta\ngamma ALPHA\na.b*c?[x]^$\ndelta\nalpha\n'
+# the prompt, a match after the cursor, repeating with Enter, wrapping
+edit 71 srch.txt '{^W}{Dump}alPHA{Dump}{Enter}{Dump}{^W}{Dump}{Enter}{Dump}{^W}{Enter}{Dump}{^S}{^X}'
+# metacharacters are literal; a match before the cursor, by wrapping
+edit 72 srch.txt '{^W}*c?[x]^${Enter}{Dump}{^W}.{Enter}{Dump}{^X}'
+# not found: the cursor stays
+edit 73 srch.txt '{Down}{Right}{^W}zzz{Enter}{Dump}{^X}'
+# the only occurrence
+edit 74 srch.txt '{^W}delta{Enter}{^W}{Enter}{Dump}{^X}'
+# ^C cancels, keeping the cursor and the last search
+edit 75 srch.txt '{Down}{^W}beta{Enter}{Dump}{^W}gam{^C}{Dump}{^W}{Dump}{^C}{^X}'
+# Enter with nothing typed and nothing searched for yet
+edit 76 srch.txt '{^W}{Enter}{Dump}{^X}'
+# an empty buffer
+edit 77 '' '{^W}x{Enter}{Dump}{^X}'
+# editing the answer; Meta keys do nothing here, not even M-D
+edit 78 srch.txt '{^W}xalpzha{Home}{Del}{End}{Left}{Left}{Bsp}{M-D}{Esc}u{Dump}{Enter}{Dump}{^X}'
+# the view follows: off screen a match is centered, on screen it stays
+edit 79 lines.txt '{^W}77{Enter}{Dump}{^W}5{Enter}{Dump}{^W}{Enter}{Dump}{^W}{Enter}{Dump}{^W}100{Enter}{^W}{Enter}{Dump}{^X}'
+# far along a long line
+fixture SLONG.TXT "$(printf '%090d' 0)END\nnext\n"
+edit 80 slong.txt '{^W}end{Enter}{Dump}{^X}'
+# bytes 128-255 match only themselves
+fixture SHIGH.TXT 'a\351b\n'
+edit 81 shigh.txt '{^W}{xC9}{Enter}{Dump}{^W}{xE9}{Enter}{Dump}{^X}'
+# F6, and a long term cut in the label and the message
+edit 82 srch.txt '{F6}abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz{Enter}{Dump}{^W}{Dump}{^C}{^X}'
+
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 300 \
     "$DOSBOX" -defaultconf -silent -nogui -nomenu \
     -set "cpu cycles=max" -set "cpu cputype=8086" -set "cpu core=normal" \
@@ -374,8 +403,8 @@ check "no temporary files left" test -z "$(ls | grep -F '$$$')"
 rc 20 0
 row 20 1 0 "  tico16 $ver                         dos.txt"
 shows 20 1 '\[ Read 2 lines (Read as DOS format) \]'
-row 20 1 23 '^X Exit        ^K Cut         ^C Location'
-row 20 1 24 '^O Write Out   ^U Paste       M-6 Copy'
+row 20 1 23 '^X Exit        ^W Where Is    ^U Paste       M-6 Copy'
+row 20 1 24 '^O Write Out   ^K Cut         ^C Location'
 rc 21 0
 row 21 1 0 "  tico16 $ver                         new.txt"
 shows 21 1 '\[ New File \]'
@@ -552,6 +581,63 @@ bytes 69 ORIG2.TXT 'orig\n'
 bytes 69 OTHER2.TXT 'orig\r\n'
 rc 70 0
 bytes 70 ZFMT.TXT 'a\nb\n\032'
+# search
+rc 71 0
+shows 71 1 '^Search:$'
+row 71 1 23 '^C Cancel'
+row 71 1 24 ''
+shows 71 2 '^Search: alPHA$'
+shows 71 3 '^=== dump cursor 2 6$'
+row 71 3 22 ''
+shows 71 4 '^Search \[alPHA\]:$'
+shows 71 5 '^=== dump cursor 5 0$'
+row 71 5 22 ''
+shows 71 6 '^=== dump cursor 1 0$' '\[ Search Wrapped \]'
+row 71 6 0 "  tico16 $ver                        srch.txt"
+bytes 71 SRCH.TXT 'Alpha beta\ngamma ALPHA\na.b*c?[x]^$\ndelta\nalpha\n'
+rc 72 0
+shows 72 1 '^=== dump cursor 3 3$'
+shows 72 2 '^=== dump cursor 3 1$' '\[ Search Wrapped \]'
+rc 73 0
+shows 73 1 '^=== dump cursor 2 1$' '\[ "zzz" not found \]'
+rc 74 0
+shows 74 1 '^=== dump cursor 4 0$' '\[ This is the only occurrence \]'
+rc 75 0
+shows 75 1 '^=== dump cursor 1 6$' '\[ Search Wrapped \]'
+shows 75 2 '^=== dump cursor 1 6$' '\[ Cancelled \]'
+shows 75 3 '^Search \[beta\]:$'
+rc 76 0
+shows 76 1 '^=== dump cursor 1 0$' '\[ Cancelled \]'
+rc 77 0
+shows 77 1 '^=== dump cursor 1 0$' '\[ "x" not found \]'
+rc 78 0
+shows 78 1 '^Search: alpha$' '^=== dump cursor 22 11$'
+shows 78 2 '^=== dump cursor 2 6$'
+row 78 2 0 "  tico16 $ver                        srch.txt"
+# 77 off screen: centered (67 on top); the 5 of 85, on screen, stays;
+# 95 is centered; then around the end to 5; 100, then only 100
+rc 79 0
+row 79 1 1 '67'
+shows 79 1 '^=== dump cursor 11 0$'
+row 79 2 1 '67'
+shows 79 2 '^=== dump cursor 19 1$'
+row 79 2 22 ''
+row 79 3 1 '85'
+shows 79 3 '^=== dump cursor 11 1$'
+row 79 4 1 '1'
+shows 79 4 '^=== dump cursor 5 0$' '\[ Search Wrapped \]'
+row 79 5 1 '90'
+shows 79 5 '^=== dump cursor 11 0$' '\[ This is the only occurrence \]'
+rc 80 0
+shows 80 1 '^=== dump cursor 1 18$'
+row 80 1 1 "<$(printf '%090d' 0 | cut -c74-90)END"
+rc 81 0
+shows 81 1 '^=== dump cursor 1 0$' '\[ "\(.\)" not found \]'
+shows 81 2 '^=== dump cursor 1 1$'
+rc 82 0
+shows 82 1 '\[ "abcdefghijklmnopqrstuvwxyz0123456789abcd..." not found \]'
+shows 82 2 '^Search \[abcdefghijklmnopqrstuvwxyz...\]:$'
+
 check "no temporary files left after format changes" test -z "$(ls | grep -F '$$$')"
 
 # ------------------------------------------------------------------

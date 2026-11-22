@@ -8,12 +8,25 @@ delete its entry.
 ## Most commands are not there
 
 tico16 has cursor movement, typing, Enter, Tab, Backspace/Delete,
-`^K` cut, `M-6` copy, `^U` paste, `^C` Location, `^O` Write Out,
-`^S` Save and `^X` Exit, plus their function-key equivalents. Everything
-else -- help, search and replace, undo, the mark, Read File, Go To Line,
+`^K` cut, `M-6` copy, `^U` paste, `^C` Location, `^W` Where Is,
+`^O` Write Out, `^S` Save and `^X` Exit, plus their function-key
+equivalents. Everything else -- help, replace, undo, the mark, Read
+File, Go To Line,
 Execute, justify, the toggles and the rest -- is left out, and its keys
 report `Unbound key: KEY`. The shortcut bar lists only the commands that
 exist, in tico's order.
+
+## Search is plain, forward and case-insensitive
+
+`^W` searches forward for literal text, ignoring case, as tico does by
+default. Its prompt has none of the search options: no case-sensitive
+(`M-C`), regular expression (`M-R`) or backward (`M-B`) toggles, no
+replace (`^R`), no search history, and no `M-W`/`M-Q` (Next/Previous)
+commands. Its shortcut bar shows only `^C` Cancel. Case folding is
+ASCII only (A-Z with a-z), since bytes 128-255 are code page characters
+rather than UTF-8. The match isn't highlighted. As in nano (tico shows
+them whole), the last term in the prompt is cut to a third of the
+screen width, and the term in `"TERM" not found` to half of it.
 
 ## New buffers are saved in DOS format
 
