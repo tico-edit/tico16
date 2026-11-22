@@ -34,6 +34,7 @@ a file that can't be read (a directory, or too big for memory).
 | `^U` (F10) | Paste |
 | `^C` (F11) | Show the cursor position |
 | `^O` (F3) | Write Out, asking for the file name |
+| `M-D` `M-U` `M-M` | In Write Out: write DOS, Unix or Mac format |
 | `^S` | Save |
 | `^X` (F2) | Exit, asking to save a modified buffer |
 
@@ -47,7 +48,17 @@ line break says whether a file is DOS (CR LF), Unix (LF) or Mac (CR)
 format, and every line is written back in that format. A file opened
 and saved without changes is unchanged, as long as its line breaks are
 all the same kind and it ends with one; otherwise the breaks come out
-uniform, and a final one is added, as in nano. New files are DOS format.
+uniform, and a final one is added, as in nano. New files, and files with
+no line break, are DOS format.
+
+Opening a file reports the format it was read as, e.g. `Read 2 lines
+(Read as Unix format)`. The Write Out prompt always shows the format it
+will write, `Write to File [Unix Format]:`, and `M-D`, `M-U` and `M-M`
+choose DOS, Unix or Mac there, so a Unix `AUTOEXEC.BAT` can be made a
+DOS one with `^O`, `M-D`, Enter. Choosing a different format changes the
+buffer's format at once and marks it modified; cancelling the prompt
+keeps the new format, and later `^S` saves use it.
+
 A trailing Ctrl+Z is kept. Bytes are not converted in any way.
 
 See `DIFFERENCES.md` for where tico16 differs from tico, and
